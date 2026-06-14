@@ -141,7 +141,10 @@
     repel: { label: 'Repel', color: '#6a9dff', radius: 125, drain: 7 },
     empower: { label: 'Empower', color: '#ffd76a', radius: 135, drain: 5 }
   };
-  const SOLID = new Set(['#', 'T', 't', '%', 'n', '+', '~', 'B', 'b']);
+  // 'D' is a closed door — solid until a plate puzzle opens it (openDoors turns
+  // it into a walkable '='). Without this, doors rendered shut but let you walk
+  // through, so plate puzzles gated nothing.
+  const SOLID = new Set(['#', 'T', 't', '%', 'n', '+', '~', 'B', 'b', 'D']);
 
   /* =========================== SCREEN LOADING ======================== */
   function gridPosOf(id) {

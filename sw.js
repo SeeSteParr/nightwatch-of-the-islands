@@ -2,7 +2,7 @@
    NETWORK-FIRST everywhere (assets are not content-hashed, and a past
    cache-first worker on another site served stale HTML for weeks — never
    again). The cache is an offline fallback, not the primary source. */
-const CACHE = 'nightwatch-v5';
+const CACHE = 'nightwatch-v6';
 const ASSETS = [
   '/', '/index.html', '/manifest.webmanifest',
   '/js/sprites.js', '/js/data.js', '/js/music.js', '/js/game.js', '/js/touch.js',
