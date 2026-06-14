@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#06070f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Nightwatch of the Islands — A Mythic Malta Adventure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gold:#e8c372; --gold-dim:#a98c4b; --ink:#0b0e1a; --parchment:#e9dcc0;
+    --cyan:#7fd9e8; --magic:#7f6ae8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{height:100%;background:#06070f;overflow:hidden}
+  /* Chrome/Android resolves percentage heights against the LARGE viewport
+     while its toolbar is still visible — size the body from the tracked
+     visible height instead so centring happens inside what you can see */
+  body{height:var(--appH, 100svh);background:#06070f;overflow:hidden}
+  body{display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;color:var(--parchment)}
+  /* --appH is kept in sync with the REAL visible viewport by game.js —
+     mobile 100vh lies when the browser URL bar is showing and clips the HUD */
+  /* #wrap fills the whole viewport; the fixed-aspect canvas is centred inside
+     it (letterboxed). This lets the HUD + touch controls use the FULL screen
+     width — so the Satchel button and zone name stop falling off the right
+     edge — while the 5:3 pixel art stays undistorted. The bars become part of
+     the game frame instead of dead browser space. */
+  #wrap{
+    position:relative;user-select:none;overflow:hidden;
+    width:100vw;height:var(--appH, 100svh);
+    display:flex;align-items:center;justify-content:center;
+  }
+  canvas#game{
+    width:min(100vw, calc(var(--appH, 100vh) * 1.66667));
+    height:min(var(--appH, 100vh), 60vw);
+    display:block;image-rendering:pixelated;background:#06070f;
+  }
+
+  /* ---------- HUD top bar ---------- */
+  #hud{
+    position:absolute;top:0;left:0;right:0;height:11.5%;z-index:5;
+    display:flex;align-items:center;gap:1.2%;
+    padding:0 calc(1.2% + env(safe-area-inset-right,0px)) 0 calc(1.2% + env(safe-area-inset-left,0px));
+    background:linear-gradient(180deg, rgba(7,8,16,.92) 0%, rgba(7,8,16,.78) 70%, rgba(7,8,16,0) 100%);
+    pointer-events:none; font-size:clamp(8px,1.6vw,14px);
+  }
+  #hud.hidden{display:none}
+  .hudgroup{display:flex;align-items:center;gap:.45em;pointer-events:none}
+  #lives{display:flex;gap:2px;align-items:center}
+  #lives canvas{width:1.45em;height:1.45em;image-rendering:pixelated}
+  #lives canvas.lost{filter:grayscale(1) brightness(.4)}
+  #hearts{display:flex;gap:1px;font-size:1.25em;line-height:1;letter-spacing:1px}
+  #hearts .h{color:#e84545;text-shadow:0 0 4px rgba(232,69,69,.6)}
+  #hearts .h.half{background:linear-gradient(90deg,#e84545 50%,#3a2230 50%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  #hearts .h.empty{color:#3a2230}
+  #slots{display:flex;gap:.4em}
+  .slot{
+    width:2.6em;height:2.6em;border:1px solid var(--gold-dim);border-radius:4px;
+    background:rgba(20,17,8,.85);display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .slot canvas{width:2em;height:2em;image-rendering:pixelated}
+  .slot .key{position:absolute;bottom:-1px;right:1px;font-size:.55em;color:#8d815f}
+  .slot.lit{box-shadow:0 0 10px rgba(232,195,114,.55);border-color:var(--gold)}
+  /* persistent lantern-mode read-out — testers couldn't remember which mode
+     was active ("took me forever to remember reveal"); show it always */
+  #lantmode{
+    font-family:'IM Fell English',serif;font-size:.95em;white-space:nowrap;
+    color:#8d815f;letter-spacing:.03em;gap:.35em;flex-shrink:0;
+  }
+  #lantmode::before{
+    content:'';width:.6em;height:.6em;border-radius:50%;background:currentColor;
+    box-shadow:0 0 6px currentColor;display:inline-block;vertical-align:middle;margin-right:.35em;
+  }
+  #magicwrap{display:flex;flex-direction:column;gap:2px;min-width:4.5em;flex-shrink:1}
+  #magicwrap label{font-size:.62em;letter-spacing:.2em;color:#9b8fd8;text-transform:uppercase}
+  #magicbar{height:.65em;background:#1a1530;border:1px solid #4a3f8a;border-radius:3px;overflow:hidden}
+  #magicfill{height:100%;width:100%;background:linear-gradient(90deg,#5a48c8,#9d8aff);box-shadow:0 0 8px rgba(127,106,232,.7);transition:width .15s}
+  #beaconctr{font-family:'IM Fell English',serif;color:var(--gold);font-size:1.05em;white-space:nowrap}
+  #hud .btn{
+    pointer-events:auto;cursor:pointer;border:1px solid var(--gold-dim);border-radius:4px;
+    background:rgba(20,17,8,.85);color:var(--gold);font-family:'IM Fell English',serif;
+    padding:.35em .7em;font-size:.95em;letter-spacing:.05em;
+    flex-shrink:0;white-space:nowrap;
+  }
+  #hud .btn:hover{box-shadow:0 0 10px rgba(232,195,114,.5)}
+  /* zone name: never let long names ("Ħaġar Qim & Mnajdra") run off-screen */
+  #zonename{
+    margin-left:auto;font-family:'IM Fell English',serif;font-style:italic;color:#bfae8a;
+    font-size:1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    max-width:34%;flex-shrink:1;padding-right:.2em;
+  }
+  /* tighter HUD on phones so everything fits across one row */
+  @media (max-aspect-ratio: 16/10){
+    #hud{font-size:clamp(7px,1.5vw,12px);gap:.7%}
+    #zonename{max-width:26%;font-size:.92em}
+  }
+
+  /* ---------- bottom hint / dialogue ---------- */
+  #hint{
+    position:absolute;left:50%;bottom:2%;transform:translateX(-50%);z-index:5;
+    font-size:clamp(8px,1.5vw,13px);color:#cfc3a5;background:rgba(7,8,16,.7);
+    padding:.3em 1em;border-radius:4px;pointer-events:none;white-space:nowrap;
+  }
+  #hint:empty{display:none}
+  #dialog{
+    position:absolute;left:50%;bottom:3%;transform:translateX(-50%);z-index:8;width:72%;
+    background:linear-gradient(180deg,rgba(14,12,24,.96),rgba(8,7,14,.96));
+    border:1px solid var(--gold-dim);border-radius:6px;padding:.9em 1.2em;
+    font-size:clamp(9px,1.7vw,15px);box-shadow:0 6px 30px rgba(0,0,0,.7);
+  }
+  #dialog.hidden{display:none}
+  #dialog .who{font-family:'IM Fell English',serif;color:var(--gold);margin-bottom:.25em}
+  #dialog .text{color:#ded3b8;line-height:1.45;min-height:2.8em}
+  #dialog .more{text-align:right;color:#8d815f;font-size:.75em;margin-top:.2em}
+
+  /* ---------- modal panels ---------- */
+  .panel{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(11,14,26,.88) 0%, rgba(4,5,12,.97) 100%);
+    text-align:center;padding:2rem;z-index:10;overflow-y:auto;
+  }
+  /* short landscape phones: the title/keys are taller than the viewport — top-
+     align and scroll so the heading is never clipped off the top of the page */
+  @media (max-height:560px){
+    .panel{justify-content:flex-start;padding:1.1rem 1.2rem;gap:.15rem}
+    .panel h1{font-size:clamp(1.5rem,4.5vw,2.4rem)}
+    .keys{margin:.5rem 0}
+  }
+  .panel.hidden{display:none}
+  .panel h1{font-family:'IM Fell English',serif;font-size:clamp(2rem,5vw,3.4rem);color:var(--gold);letter-spacing:.04em;text-shadow:0 0 24px rgba(232,195,114,.35)}
+  .panel h2{font-family:'IM Fell English',serif;font-size:clamp(1.1rem,3vw,1.7rem);color:var(--gold)}
+  .panel .sub{font-style:italic;font-family:'IM Fell English',serif;color:#bfae8a;margin:.4rem 0 1.2rem;font-size:clamp(.85rem,2vw,1.1rem)}
+  .panel .body{max-width:600px;line-height:1.55;color:#d8cdb2;font-size:clamp(.78rem,1.7vw,.95rem)}
+  .keys{margin:1rem 0;display:grid;grid-template-columns:auto auto;gap:.25rem 1.1rem;font-size:clamp(.68rem,1.5vw,.85rem);text-align:left;color:#cfc3a5}
+  /* show the touch legend on touch devices, the keyboard legend otherwise */
+  .touchkeys{display:none}
+  body.touch .keyboardkeys{display:none}
+  body.touch .touchkeys{display:grid}
+  /* big, obvious ✕ to close a modal on mobile (the buried close button hurt testers) */
+  .modalX{
+    position:absolute;top:calc(2% + env(safe-area-inset-top,0px));right:calc(2% + env(safe-area-inset-right,0px));
+    z-index:20;width:2.6em;height:2.6em;border-radius:50%;font-size:clamp(15px,3vw,22px);line-height:1;
+    border:1px solid var(--gold);background:rgba(20,17,8,.92);color:var(--gold);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(232,195,114,.4);
+  }
+  .modalX:hover{background:rgba(232,195,114,.25)}
+  .keys b{color:var(--cyan);font-weight:600}
+  button.go{
+    margin-top:1rem;font-family:'IM Fell English',serif;font-size:1.1rem;letter-spacing:.06em;
+    background:linear-gradient(180deg,#2a2415,#171208);color:var(--gold);border:1px solid var(--gold-dim);
+    padding:.6rem 2.2rem;border-radius:4px;cursor:pointer;transition:all .2s;
+  }
+  button.go:hover{box-shadow:0 0 18px rgba(232,195,114,.45);transform:translateY(-1px)}
+  button.go.minor{font-size:.9rem;padding:.45rem 1.4rem;opacity:.85}
+  .btnrow{display:flex;gap:1rem;align-items:center}
+
+  /* codex / story scroll */
+  .scroll{
+    max-width:560px;background:linear-gradient(180deg,#efe3c6,#dcc99e);color:#3a2d14;border-radius:6px;
+    padding:1.5rem 1.9rem;box-shadow:0 0 40px rgba(0,0,0,.7), inset 0 0 60px rgba(120,90,30,.18);
+    border:1px solid #b59a5e;
+  }
+  .scroll h2{color:#5b4317;margin-bottom:.5rem}
+  .scroll .body{color:#4a3a1a;font-size:clamp(.76rem,1.6vw,.92rem);max-width:none}
+  .scroll .tag{display:inline-block;margin-top:.8rem;font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:#7a6230}
+
+  /* map modal */
+  #mapModal .scroll{padding:1rem}
+  #mapCanvas{width:min(60vw,560px);image-rendering:auto;border-radius:4px}
+
+  /* inventory modal */
+  #invGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;margin:1rem 0;max-width:560px}
+  .invItem{
+    border:1px solid #b59a5e;border-radius:6px;background:rgba(255,250,235,.45);padding:.55rem .5rem;
+    display:flex;flex-direction:column;align-items:center;gap:.3rem;cursor:pointer;min-width:7.2rem;
+  }
+  .invItem:hover{background:rgba(255,250,235,.75)}
+  .invItem.equipped{outline:2px solid #8a6a1f;background:rgba(255,244,200,.8)}
+  .invItem canvas{width:42px;height:42px;image-rendering:pixelated}
+  .invItem .nm{font-size:.68rem;font-weight:600;color:#4a3a1a;text-align:center}
+  .invItem .era{font-size:.55rem;color:#7a6230;letter-spacing:.08em;text-transform:uppercase}
+  #invDesc{max-width:560px;min-height:3.2em;font-size:.8rem;color:#4a3a1a;font-style:italic;line-height:1.45}
+
+  .small{margin-top:.9rem;font-size:.7rem;color:#8d815f;letter-spacing:.05em}
+  #completeBadge{margin:.6rem 0;font-family:'IM Fell English',serif;color:var(--gold);font-size:clamp(.8rem,1.8vw,1.05rem);text-shadow:0 0 14px rgba(232,195,114,.5)}
+  #completeBadge.hidden{display:none}
+
+  /* touch controls (added by js/touch.js on coarse-pointer devices) */
+  body{touch-action:manipulation}
+  #touchUI{position:absolute;inset:0;z-index:6;pointer-events:none;display:none}
+  body.touch #touchUI{display:block}
+  #joyZone{position:absolute;left:0;bottom:0;width:46%;height:64%;pointer-events:auto;touch-action:none}
+  #joyBase{
+    display:none;position:absolute;width:104px;height:104px;margin:-52px 0 0 -52px;border-radius:50%;
+    border:2px solid rgba(232,195,114,.45);background:rgba(20,17,8,.25);
+  }
+  #joyKnob{
+    position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;
+    transform:translate(-50%,-50%);background:rgba(232,195,114,.55);
+    box-shadow:0 0 14px rgba(232,195,114,.5);
+  }
+  #tbtns{position:absolute;right:calc(2.5% + env(safe-area-inset-right,0px));bottom:calc(4% + env(safe-area-inset-bottom,0px));pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:.55rem}
+  .trow{display:flex;gap:.55rem;align-items:center}
+  .tbtn{
+    pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;
+    width:clamp(46px,11vw,62px);height:clamp(46px,11vw,62px);border-radius:50%;
+    border:1px solid var(--gold-dim);background:rgba(20,17,8,.62);color:var(--gold);
+    font-size:clamp(18px,4.6vw,26px);line-height:1;display:flex;align-items:center;justify-content:center;
+  }
+  .tbtn.small{width:clamp(38px,8.5vw,48px);height:clamp(38px,8.5vw,48px);font-size:clamp(14px,3.6vw,20px)}
+  .tbtn.big{width:clamp(58px,14vw,78px);height:clamp(58px,14vw,78px);font-size:clamp(24px,6vw,34px);border-color:var(--gold);box-shadow:0 0 12px rgba(232,195,114,.25)}
+  .tbtn.on{background:rgba(232,195,114,.45);color:#1a1408}
+  #rotateHint{
+    display:none;position:absolute;top:14%;left:50%;transform:translateX(-50%);
+    background:rgba(7,8,16,.85);border:1px solid var(--gold-dim);border-radius:6px;
+    color:var(--gold);padding:.5em 1em;font-size:.8rem;white-space:nowrap;
+  }
+  @media (orientation: portrait){ body.touch #rotateHint{display:block} }
+
+  /* audio mixer */
+  #audioCtl{position:absolute;right:calc(1% + env(safe-area-inset-right,0px));top:13%;z-index:30;display:flex;flex-direction:column;align-items:flex-end;gap:.3em;font-size:clamp(8px,1.5vw,13px)}
+  #audioBtn,#fsBtn,#installBtn{
+    width:2.3em;height:2.3em;border-radius:50%;cursor:pointer;
+    border:1px solid var(--gold-dim);background:rgba(20,17,8,.85);color:var(--gold);
+    font-size:1.15em;line-height:1;display:flex;align-items:center;justify-content:center;
+  }
+  #audioBtn:hover,#fsBtn:hover,#installBtn:hover{box-shadow:0 0 10px rgba(232,195,114,.5)}
+  #installBtn{border-color:var(--gold);box-shadow:0 0 10px rgba(232,195,114,.35)}
+  #fsBtn{display:none}
+  body.touch #fsBtn{display:flex}
+  #audioPanel{
+    background:rgba(14,12,24,.96);border:1px solid var(--gold-dim);border-radius:6px;
+    padding:.7em .9em;display:flex;flex-direction:column;gap:.55em;min-width:11em;
+    box-shadow:0 6px 24px rgba(0,0,0,.6);
+  }
+  #audioPanel.hidden{display:none}
+  #audioPanel label{display:flex;align-items:center;justify-content:space-between;gap:.6em;color:#cfc3a5;font-size:.85em}
+  #audioPanel input[type=range]{width:7em;accent-color:#e8c372}
+  #audioPanel .muterow{justify-content:flex-start}
+  #audioPanel input[type=checkbox]{accent-color:#e8c372}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="800" height="480"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hudgroup" id="lives" title="Nine lives"></div>
+    <div class="hudgroup"><div id="hearts"></div></div>
+    <div class="hudgroup" id="slots">
+      <div class="slot" id="slotWeapon" title="Weapon"><canvas width="16" height="16"></canvas><span class="key">SPC</span></div>
+      <div class="slot" id="slotShield" title="Shield"><canvas width="16" height="16"></canvas><span class="key">SHF</span></div>
+      <div class="slot" id="slotLantern" title="Lantern"><canvas width="16" height="16"></canvas><span class="key">L/Q</span></div>
+    </div>
+    <div class="hudgroup" id="lantmode" title="Lantern mode — cycle with ◐ (Q)">Lantern off</div>
+    <div id="magicwrap"><label>Magic</label><div id="magicbar"><div id="magicfill"></div></div></div>
+    <div class="hudgroup" id="beaconctr">☀ 0 / 3</div>
+    <button class="btn" id="mapBtn">Map · M</button>
+    <button class="btn" id="invBtn">Satchel · I</button>
+    <div id="zonename"></div>
+  </div>
+
+  <div id="hint"></div>
+
+  <!-- audio mixer (visible on title and in game) -->
+  <div id="audioCtl">
+    <button id="installBtn" title="Install as app" style="display:none">⤓</button>
+    <button id="fsBtn" title="Fullscreen">⛶</button>
+    <button id="audioBtn" title="Music &amp; sound">♪</button>
+    <div id="audioPanel" class="hidden">
+      <label>Music <input type="range" id="volMusic" min="0" max="100" value="55"></label>
+      <label>Effects <input type="range" id="volSfx" min="0" max="100" value="80"></label>
+      <label class="muterow"><input type="checkbox" id="muteChk"> Mute all</label>
+    </div>
+  </div>
+
+  <!-- NPC dialogue -->
+  <div id="dialog" class="hidden">
+    <div class="who" id="dlgWho"></div>
+    <div class="text" id="dlgText"></div>
+    <div class="more">E / click to continue</div>
+  </div>
+
+  <!-- Title -->
+  <div id="title" class="panel">
+    <h1>Nightwatch of the Islands</h1>
+    <div class="sub">A mythic Malta lies under a curse of endless night.</div>
+    <div class="body">
+      You are <b style="color:var(--gold)">Xemx</b>, a ginger harbour-cat of Marsaxlokk — companion of the last
+      lantern-keeper, bearer of nine lives, and now of the <b style="color:var(--gold)">Guardian's Lantern</b>.
+      The Nightborne have smothered the archipelago's three great beacons.
+      Cross the island, seek the Council of Nine in the Silent City, and bring back the dawn.
+    </div>
+    <div class="keys keyboardkeys">
+      <span><b>WASD / Arrows</b></span><span>Move</span>
+      <span><b>Space</b></span><span>Attack</span>
+      <span><b>Shift (hold)</b></span><span>Shield — blocks from the front</span>
+      <span><b>L</b> / <b>Q</b></span><span>Lantern on/off · cycle Reveal / Repel / Empower</span>
+      <span><b>E</b></span><span>Talk · open · light beacons · push</span>
+      <span><b>R</b></span><span>Saint's Blessing — heal (40 magic)</span>
+      <span><b>M</b> / <b>I</b></span><span>Island map · Satchel (inventory)</span>
+    </div>
+    <div class="keys touchkeys">
+      <span><b>◀ joystick ▶</b></span><span>Move (drag your left thumb)</span>
+      <span><b>⚔</b></span><span>Attack</span>
+      <span><b>🛡 (hold)</b></span><span>Shield — blocks from the front</span>
+      <span><b>🏮 / ◐</b></span><span>Lantern on/off · cycle Reveal / Repel / Empower</span>
+      <span><b>💬</b></span><span>Talk · open · light beacons</span>
+      <span><b>✚</b></span><span>Saint's Blessing — heal (40 magic)</span>
+      <span><b>Map / Satchel</b></span><span>Top bar · island map &amp; inventory</span>
+      <span><b>⛶</b></span><span>Fullscreen (top-right) — best on mobile</span>
+    </div>
+    <div id="completeBadge" class="hidden">✦ Dawn Returned ✦ — you have lifted the curse of the islands</div>
+    <div class="btnrow">
+      <button class="go" id="startBtn">New Nightwatch</button>
+      <button class="go minor hidden" id="continueBtn">Continue</button>
+      <button class="go minor hidden" id="hallBtn">Hall of Records</button>
+    </div>
+    <div class="small">A vertical-slice prototype · the temples, the Knights &amp; the cats of Malta</div>
+  </div>
+
+  <!-- Story interludes -->
+  <div id="story" class="panel hidden">
+    <div class="scroll">
+      <h2 id="storyTitle"></h2>
+      <div class="body" id="storyBody"></div>
+      <div class="tag">Nightwatch — chronicle</div>
+    </div>
+    <button class="go" id="storyBtn">Continue</button>
+  </div>
+
+  <!-- Codex -->
+  <div id="codex" class="panel hidden">
+    <div class="scroll">
+      <h2 id="codexTitle">Codex</h2>
+      <div class="body" id="codexBody"></div>
+      <div class="tag">Island Codex — historical note</div>
+    </div>
+    <button class="go" id="codexBtn">Continue</button>
+  </div>
+
+  <!-- Hall of Records — re-readable codex gallery, unlocked from the title -->
+  <div id="hall" class="panel hidden">
+    <button class="modalX" id="hallX" aria-label="Close hall">✕</button>
+    <div class="scroll" style="max-width:640px;max-height:78vh;overflow-y:auto">
+      <h2>Hall of Records</h2>
+      <div class="body" id="hallBody"></div>
+      <div class="tag">Histories of the islands you have recovered</div>
+    </div>
+    <button class="go minor" id="hallClose">Close</button>
+  </div>
+
+  <!-- Map -->
+  <div id="mapModal" class="panel hidden">
+    <button class="modalX" id="mapX" aria-label="Close map">✕</button>
+    <div class="scroll">
+      <h2>The Island of Malta</h2>
+      <canvas id="mapCanvas" width="560" height="430"></canvas>
+      <div class="tag" id="mapLegend">Parchment of the Order — zones reveal as you wander</div>
+    </div>
+    <button class="go minor" id="mapClose">Close map</button>
+  </div>
+
+  <!-- Inventory -->
+  <div id="invModal" class="panel hidden">
+    <button class="modalX" id="invX" aria-label="Close satchel">✕</button>
+    <div class="scroll" style="max-width:640px">
+      <h2>Satchel of the Lantern-Bearer</h2>
+      <div id="invGrid"></div>
+      <div id="invDesc">Select an item to read its history. Tap a weapon or shield to equip it.</div>
+      <div class="tag">Arms &amp; relics of the islands</div>
+    </div>
+    <button class="go minor" id="invClose">Close satchel</button>
+  </div>
+
+  <!-- End / game over -->
+  <div id="end" class="panel hidden">
+    <h1 id="endTitle">Dawn Returns</h1>
+    <div class="sub" id="endSub"></div>
+    <div class="body" id="endBody"></div>
+    <div class="btnrow">
+      <button class="go hidden" id="dawnBtn">☀ Walk in the Dawn</button>
+      <button class="go" id="endBtn">Return to Title</button>
+    </div>
+  </div>
+</div>
+<script src="js/sprites.js"></script>
+<script src="js/data.js"></script>
+<script src="js/music.js"></script>
+<script src="js/game.js"></script>
+<script src="js/touch.js"></script>
+</body>
+</html>

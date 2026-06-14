@@ -1,0 +1,17 @@
+{
+  "name": "Nightwatch of the Islands",
+  "short_name": "Nightwatch",
+  "description": "A Zelda-style adventure on a mythic Malta — play as Xemx the harbour cat and bring back the dawn.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#06070f",
+  "theme_color": "#06070f",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
